@@ -1,65 +1,121 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Dashboard') }}
-        </h2>
-    </x-slot>
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+</head>
+<body class="bg-gray-100 dark:bg-gray-900">
+    <div class="container mx-auto px-4">
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="p-4 flex justify-between items-center">
+                <h1 class="text-lg font-semibold">Dashboard</h1>
+                <form action="{{ route('logout') }}" method="POST">
+                    @csrf
+                    <button type="submit" class="bg-red-500 text-white py-2 px-4 rounded">Logout</button>
+                </form>
+            </div>
+            <div class="p-4">
+                <form action="{{ route('audio.store') }}" method="post">
+                    @csrf
+                    <div class="mb-4">
+                        <label for="title" class="block text-gray-700">Title</label>
+                        <input type="text" name="title" id="title" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" required>
+                    </div>
+                    <div class="video-container">
+                        <audio id="preview" controls></audio>
+                        <button type="button" id="startRecord" class="px-3 py-2 text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 my-2">Mulai Rekam</button>
+                        <button type="button" id="stopRecord" class="px-3 py-2 text-white bg-red-700 rounded-lg hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 my-2" disabled>Berhenti Rekam</button>
+                        <audio id="recorded" controls class="hidden mt-4"></audio>
+                    </div>
+                    <input type="hidden" name="audio" id="audioData">
+                    <button type="submit" class="mt-4 bg-blue-500 text-white py-2 px-4 rounded">Unggah Audio</button>
+                </form>
 
-    <x-slot name="content">
-        <div class="container mx-auto px-4">
-            <div class="bg-white rounded-lg shadow overflow-hidden">
-                <div class="p-4">
-                    <h1 class="text-lg font-semibold mb-4">Dashboard</h1>
-                    <form action="{{ route('upload.audio') }}" method="post" enctype="multipart/form-data">
-                        @csrf
-                        <input type="file" name="audio" accept="audio/*" class="mb-4" id="audio-upload">
-                        <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded">Unggah Audio</button>
-                    </form>
-                    @if (session('audio'))
-                        <h2>Audio yang diunggah:</h2>
-                        <div id="waveform" class="w-full mb-4"></div>
-                        <audio id="audioPlayer" controls class="w-full mb-4">
-                            <source src="{{ Storage::url(session('audio')) }}" type="audio/mpeg">
-                            Your browser does not support the audio element.
-                        </audio>
-                        <div class="mt-4">
-                            <button id="playButton" class="bg-green-500 text-white py-2 px-4 rounded">Putar</button>
-                            <button id="stopButton" class="bg-red-500 text-white py-2 px-4 rounded">Stop</button>
+                @if($audios->isNotEmpty())
+                    <h2 class="text-md font-semibold mb-2">Audio yang Diunggah:</h2>
+                    @foreach($audios as $audio)
+                        <div class="mb-4">
+                            <audio controls class="w-full mb-2">
+                                <source src="{{ asset('storage/' . $audio->path) }}" type="audio/mp3">
+                                Your browser does not support the audio element.
+                            </audio>
+                            <form action="{{ route('audio.destroy', $audio->id) }}" method="post">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="mt-2 bg-red-500 text-white py-2 px-4 rounded">Hapus Audio</button>
+                            </form>
                         </div>
-                    @endif
-                </div>
+                    @endforeach
+                @else
+                    <p>Tidak ada audio yang diunggah.</p>
+                @endif
+
+                <a href="{{ route('library') }}" class="mt-4 bg-blue-500 text-white py-2 px-4 rounded">Go to Library</a>
             </div>
         </div>
-    </x-slot>
-</x-app-layout>
-
-@push('scripts')
-    <script src="{{ asset('js/app.js') }}"></script>
+    </div>
+    <script src="https://cdn.tailwindcss.com/"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const playButton = document.getElementById('playButton');
-            const stopButton = document.getElementById('stopButton');
-            
-            const audioPlayer = document.getElementById('audioPlayer');
-            const audioFilePath = "{{ Storage::url(session('audio')) }}";
+        let mediaRecorder;
+        let recordedBlobs;
 
-            if (audioFilePath) {
-                const wavesurfer = WaveSurfer.create({
-                    container: '#waveform',
-                    waveColor: 'violet',
-                    progressColor: 'purple'
-                });
+        const preview = document.getElementById('preview');
+        const startRecordButton = document.getElementById('startRecord');
+        const stopRecordButton = document.getElementById('stopRecord');
+        const recordedAudio = document.getElementById('recorded');
+        const audioData = document.getElementById('audioData');
 
-                wavesurfer.load(audioFilePath);
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                preview.srcObject = stream;
+                window.stream = stream;
 
-                playButton.addEventListener('click', () => {
-                    wavesurfer.play();
-                });
+                startRecordButton.addEventListener('click', startRecording);
+                stopRecordButton.addEventListener('click', stopRecording);
+            })
+            .catch(error => {
+                console.error('Error accessing media devices.', error);
+            });
 
-                stopButton.addEventListener('click', () => {
-                    wavesurfer.stop();
-                });
+        function startRecording() {
+            recordedBlobs = [];
+            const options = { mimeType: 'audio/webm' };
+            try {
+                mediaRecorder = new MediaRecorder(window.stream, options);
+            } catch (e) {
+                console.error('Exception while creating MediaRecorder:', e);
             }
-        });
+
+            mediaRecorder.onstop = (event) => {
+                const blob = new Blob(recordedBlobs, { type: 'audio/webm' });
+                const url = window.URL.createObjectURL(blob);
+                recordedAudio.src = url;
+                recordedAudio.classList.remove('hidden');
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = function () {
+                    audioData.value = reader.result;
+                }
+            };
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0) {
+                    recordedBlobs.push(event.data);
+                }
+            };
+
+            mediaRecorder.start();
+            startRecordButton.disabled = true;
+            stopRecordButton.disabled = false;
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+            startRecordButton.disabled = false;
+            stopRecordButton.disabled = true;
+        }
     </script>
-@endpush
+</body>
+</html>

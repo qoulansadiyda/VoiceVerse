@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <!-- Styles -->
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <style>
+        .video-container {
+            width: 100%;
+            max-width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        video {
+            width: 100%;
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-white">
+
+<!-- Main content -->
+<div class="container mx-auto px-4">
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-4">
+            <h1 class="text-lg font-semibold mb-4">Dashboard</h1>
+
+            <!-- Perekam Audio -->
+            <div class="mb-4">
+                <h2 class="text-md font-semibold mb-2">Rekam Audio</h2>
+                <div class="video-container">
+                    <audio id="preview" controls></audio>
+                    <button type="button" id="startRecord" class="px-3 py-2 text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 my-2">Mulai Rekam</button>
+                    <button type="button" id="stopRecord" class="px-3 py-2 text-white bg-red-700 rounded-lg hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 my-2" disabled>Berhenti Rekam</button>
+                    <audio id="recorded" controls class="hidden mt-4"></audio>
+                </div>
+                <form action="{{ route('upload.audio') }}" method="post">
+                    @csrf
+                    <input type="hidden" name="audio" id="audioData">
+                    <input type="text" name="title" placeholder="Judul Audio" class="mt-4 p-2 border rounded w-full" required>
+                    <button type="submit" class="mt-4 bg-blue-500 text-white py-2 px-4 rounded">Unggah Audio</button>
+                </form>
+            </div>
+
+            <!-- Menampilkan Audio yang Diunggah -->
+            @if($audios->isNotEmpty())
+                <h2 class="text-md font-semibold mb-2">Audio yang Diunggah:</h2>
+                @foreach($audios as $audio)
+                    <div class="mb-4">
+                        <audio controls class="w-full mb-2">
+                            <source src="{{ Storage::url($audio->path) }}" type="audio/mp3">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                @endforeach
+            @else
+                <p>Tidak ada audio yang diunggah.</p>
+            @endif
+
+            <!-- Tombol Navigasi ke Library -->
+            <a href="{{ route('library') }}" class="mt-4 bg-green-500 text-white py-2 px-4 rounded">Masuk ke Library</a>
+
+            <!-- Tombol Logout -->
+            <form action="{{ route('logout') }}" method="post" class="mt-4">
+                @csrf
+                <button type="submit" class="bg-red-500 text-white py-2 px-4 rounded">Logout</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com/"></script>
+
+<!-- JavaScript -->
+<script>
+    let mediaRecorder;
+    let recordedBlobs;
+
+    const preview = document.getElementById('preview');
+    const startRecordButton = document.getElementById('startRecord');
+    const stopRecordButton = document.getElementById('stopRecord');
+    const recordedAudio = document.getElementById('recorded');
+    const audioData = document.getElementById('audioData');
+
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            preview.srcObject = stream;
+            window.stream = stream;
+
+            startRecordButton.addEventListener('click', startRecording);
+            stopRecordButton.addEventListener('click', stopRecording);
+        })
+        .catch(error => {
+            console.error('Error accessing media devices.', error);
+        });
+
+    function startRecording() {
+        recordedBlobs = [];
+        const options = { mimeType: 'audio/webm' };
+        try {
+            mediaRecorder = new MediaRecorder(window.stream, options);
+        } catch (e) {
+            console.error('Exception while creating MediaRecorder:', e);
+            return;
+        }
+
+        startRecordButton.disabled = true;
+        stopRecordButton.disabled = false;
+
+        mediaRecorder.onstop = (event) => {
+            const superBuffer = new Blob(recordedBlobs, { type: 'audio/webm' });
+            recordedAudio.src = window.URL.createObjectURL(superBuffer);
+            recordedAudio.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.readAsDataURL(superBuffer);
+            reader.onloadend = () => {
+                audioData.value = reader.result;
+            };
+        };
+
+        mediaRecorder.ondataavailable = handleDataAvailable;
+        mediaRecorder.start();
+    }
+
+    function stopRecording() {
+        mediaRecorder.stop();
+        startRecordButton.disabled = false;
+        stopRecordButton.disabled = true;
+    }
+
+    function handleDataAvailable(event) {
+        if (event.data && event.data.size > 0) {
+            recordedBlobs.push(event.data);
+        }
+    }
+</script>
+</body>
+</html>

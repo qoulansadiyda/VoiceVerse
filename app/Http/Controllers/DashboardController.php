@@ -1,25 +1,41 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
+use App\Models\Audio; // Tambahkan baris ini untuk mengimpor model Audio
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function showDashboard()
     {
-        $audio = session('audio', null);
-        return view('dashboard', compact('audio'));
+        $audios = Audio::where('user_id', Auth::id())->get();
+        return view('dashboard', compact('audios'));
     }
 
     public function uploadAudio(Request $request)
     {
-        $request->validate([
-            'audio' => 'required|mimes:mp3,wav|max:20480',
-        ]);
+        $audioData = $request->audio;
+        $title = $request->title;
 
-        $path = $request->file('audio')->store('audios');
+        $audioName = time() . '.webm';
+        Storage::disk('public')->put($audioName, base64_decode(preg_replace('#^data:audio/\w+;base64,#i', '', $audioData)));
 
-        return redirect()->route('dashboard')->with('audio', $path);
+        $audio = new Audio();
+        $audio->user_id = Auth::id();
+        $audio->title = $title;
+        $audio->path = $audioName;
+        $audio->save();
+
+        return redirect()->route('library');
+    }
+
+    public function library()
+    {
+        $audios = Audio::with('user')->get();
+        return view('library', compact('audios'));
     }
 }
+
