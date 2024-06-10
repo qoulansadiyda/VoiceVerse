@@ -17,9 +17,10 @@
                             <h2 class="text-md font-semibold">{{ $audio->title }}</h2>
                             <p>Uploaded by: {{ $audio->user->name }}</p>
                             <audio controls class="w-full mb-2">
-                                <source src="{{ asset('storage/' . $audio->path) }}" type="audio/mp3">
+                            <source src="{{ asset('storage/audio/' . $audio->path) }}" type="audio/mpeg">
                                 Your browser does not support the audio element.
                             </audio>
+                        
                         </div>
                     @endforeach
                 @else

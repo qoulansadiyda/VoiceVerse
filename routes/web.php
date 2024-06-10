@@ -4,6 +4,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RecordingController;
 use App\Http\Controllers\AudioController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\AudioListController;
+
+Route::get('/audio-list', [AudioController::class, 'index']);
 
 // Halaman utama
 Route::get('/', function () {

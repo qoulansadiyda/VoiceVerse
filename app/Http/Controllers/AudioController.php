@@ -7,6 +7,17 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Audio;
 
+class AudioListController extends Controller
+{
+    public function index()
+    {
+        // Ambil daftar file audio dari direktori storage/app/public
+        $audioFiles = Storage::disk('public')->files('audio');
+
+        // Tampilkan view audio_list.blade.php dan teruskan data daftar audio
+        return view('audio_list', ['audioFiles' => $audioFiles]);
+    }}
+    
 class AudioController extends Controller
 {
     public function store(Request $request)
